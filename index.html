@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DompetPro - Cloud Ultimate</title>
+    <!-- Library Eksternal (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- FIREBASE COMPAT (Wajib urutan ini untuk file HTML tanpa NPM) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        /* Scrollbar Halus */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .loader { border: 2px solid #f3f3f3; border-radius: 50%; border-top: 2px solid #3b82f6; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-20">
+
+    <!-- LOGIN OVERLAY -->
+    <div id="auth-screen" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full space-y-6">
+            <div class="text-center">
+                <div class="flex justify-center mb-4"><i data-lucide="cloud-lightning" class="w-12 h-12 text-blue-600"></i></div>
+                <h2 class="text-2xl font-bold text-slate-800">DompetPro Ultimate</h2>
+                <p class="text-slate-500 text-sm">Cloud Edition • Multi-Device</p>
+                <div id="conn-status" class="mt-2 text-xs font-mono text-slate-400">Connecting...</div>
+            </div>
+            
+            <div class="space-y-4">
+                <input type="email" id="auth-email" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Email" required>
+                <input type="password" id="auth-pass" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Password (Min 6 karakter)" required>
+                <div id="auth-error" class="text-red-500 text-xs text-center hidden bg-red-50 p-2 rounded border border-red-100"></div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="handleLogin()" id="btn-login" class="bg-slate-800 text-white py-3 rounded-lg font-bold hover:bg-slate-900 transition shadow-lg">Masuk</button>
+                    <button onclick="handleRegister()" id="btn-register" class="bg-white border border-slate-300 text-slate-700 py-3 rounded-lg font-bold hover:bg-slate-50 transition">Daftar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app-screen" class="hidden">
+        <!-- Navbar -->
+        <nav class="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
+            <div class="max-w-6xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="wallet" class="text-blue-400"></i>
+                    <h1 class="font-bold text-lg hidden md:block">Dompet<span class="text-blue-400">Cloud</span></h1>
+                </div>
+                <div class="flex items-center gap-4 text-xs">
+                    <div id="sync-status" class="text-emerald-400 flex items-center gap-1"><span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Live</div>
+                    <span id="user-email" class="text-slate-400 hidden sm:block"></span>
+                    <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-full flex items-center gap-1 transition"><i data-lucide="log-out" width="12"></i></button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-6xl mx-auto p-4 space-y-6">
+            <!-- Tabs -->
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="tab-btn active-tab bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="layout-dashboard" size="16"></i> Dashboard</button>
+                <button onclick="switchTab('budget')" id="btn-budget" class="tab-btn bg-white text-slate-600 border px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="shield-alert" size="16"></i> Anggaran</button>
+                <button onclick="switchTab('invest')" id="btn-invest" class="tab-btn bg-white text-slate-600 border px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="trending-up" size="16"></i> Investasi</button>
+                <button onclick="switchTab('goals')" id="btn-goals" class="tab-btn bg-white text-slate-600 border px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="target" size="16"></i> Tujuan</button>
+                <button onclick="switchTab('debt')" id="btn-debt" class="tab-btn bg-white text-slate-600 border px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="credit-card" size="16"></i> Hutang</button>
+                <button onclick="switchTab('reports')" id="btn-reports" class="tab-btn bg-white text-slate-600 border px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="file-text" size="16"></i> Laporan</button>
+                <button onclick="switchTab('advisor')" id="btn-advisor" class="tab-btn bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 whitespace-nowrap"><i data-lucide="sparkles" size="16"></i> AI Advisor</button>
+            </div>
+
+            <!-- DASHBOARD -->
+            <div id="tab-dashboard" class="tab-content fade-in space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-slate-500 text-xs font-bold uppercase mb-1">Saldo Cash</div>
+                        <div id="dash-bal" class="text-2xl font-bold text-slate-800">Rp 0</div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-emerald-600 text-xs font-bold uppercase mb-1">Pemasukan</div>
+                        <div id="dash-inc" class="text-2xl font-bold text-emerald-600">Rp 0</div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                        <div class="text-red-600 text-xs font-bold uppercase mb-1">Pengeluaran</div>
+                        <div id="dash-exp" class="text-2xl font-bold text-red-600">Rp 0</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-1 bg-white p-5 rounded-xl shadow-sm border border-slate-200 h-fit">
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="plus-circle" size="18"></i> Transaksi</h3>
+                        <div class="space-y-3">
+                            <div class="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                                <button onclick="setTxType('expense')" id="btn-tx-exp" class="flex-1 py-2 text-sm font-bold rounded bg-white text-red-600 shadow">Keluar</button>
+                                <button onclick="setTxType('income')" id="btn-tx-inc" class="flex-1 py-2 text-sm font-bold rounded text-slate-500">Masuk</button>
+                            </div>
+                            <input id="tx-desc" type="text" placeholder="Keterangan" class="w-full p-2 border rounded text-sm">
+                            <input id="tx-amt" type="number" placeholder="Rp" class="w-full p-2 border rounded text-sm">
+                            <select id="tx-cat" class="w-full p-2 border rounded text-sm bg-white">
+                                <option>Makan</option><option>Transport</option><option>Belanja</option><option>Tagihan</option><option>Gaji</option><option>Lainnya</option>
+                            </select>
+                            <input id="tx-date" type="date" class="w-full p-2 border rounded text-sm text-slate-500">
+                            <button onclick="addTransaction()" id="btn-tx-save" class="w-full bg-slate-800 text-white py-2 rounded font-bold hover:bg-slate-900 transition">Simpan</button>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-4 bg-slate-50 border-b font-bold text-slate-700">Riwayat Terakhir</div>
+                        <div id="list-tx" class="max-h-[500px] overflow-y-auto divide-y divide-slate-100 p-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BUDGET -->
+            <div id="tab-budget" class="tab-content hidden fade-in space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-1 h-fit bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="shield-alert" size="18"></i> Set Anggaran</h3>
+                        <div class="space-y-3">
+                            <select id="bd-cat" class="w-full p-2 border rounded text-sm bg-white">
+                                <option>Makan</option><option>Transport</option><option>Belanja</option><option>Tagihan</option><option>Hiburan</option><option>Lainnya</option>
+                            </select>
+                            <input id="bd-lim" type="number" placeholder="Batas (Rp)" class="w-full p-2 border rounded text-sm">
+                            <button onclick="addBudget()" class="w-full bg-slate-800 text-white py-2 rounded font-bold">Simpan Aturan</button>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 space-y-4" id="list-bd"></div>
+                </div>
+            </div>
+
+            <!-- INVESTASI -->
+            <div id="tab-invest" class="tab-content hidden fade-in space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-slate-900 text-white p-6 rounded-xl shadow-lg">
+                        <div class="text-slate-400 text-xs font-bold uppercase mb-1">Total Aset</div>
+                        <div id="inv-total" class="text-3xl font-bold">Rp 0</div>
+                        <div class="mt-2 text-xs flex gap-4 text-slate-400">
+                            <span>Modal: <span id="inv-modal" class="text-white">Rp 0</span></span>
+                            <span>Profit: <span id="inv-pl" class="font-bold">Rp 0</span></span>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow border flex flex-col justify-center items-center">
+                        <div class="text-slate-500 text-xs font-bold uppercase mb-1">ROI Portfolio</div>
+                        <div id="inv-roi" class="text-4xl font-bold text-emerald-600">0%</div>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-sm uppercase mb-3 flex items-center gap-2"><i data-lucide="plus" size="14"></i> Beli Aset</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
+                        <div class="col-span-2 md:col-span-1"><input id="av-name" placeholder="Nama Aset" class="w-full p-2 border rounded text-sm"></div>
+                        <div><select id="av-type" class="w-full p-2 border rounded text-sm"><option>Reksadana</option><option>Saham</option><option>Crypto</option><option>Emas</option></select></div>
+                        <div><input id="av-unit" type="number" step="any" placeholder="Unit" class="w-full p-2 border rounded text-sm"></div>
+                        <div><input id="av-price" type="number" placeholder="Harga Beli" class="w-full p-2 border rounded text-sm"></div>
+                        <button onclick="addAsset()" class="col-span-2 md:col-span-1 bg-slate-800 text-white py-2 rounded font-bold text-sm">Beli</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-4 bg-yellow-50 text-yellow-800 text-xs flex items-center gap-2"><i data-lucide="refresh-cw" size="14"></i> Update "Harga Pasar" untuk lihat ROI Realtime (Otomatis simpan).</div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase border-b"><tr><th class="p-3">Aset</th><th class="p-3 text-right">Modal</th><th class="p-3 text-right bg-slate-100">Harga Pasar</th><th class="p-3 text-right">Value</th><th class="p-3 text-center">ROI</th><th class="p-3"></th></tr></thead>
+                            <tbody id="list-av" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GOALS -->
+            <div id="tab-goals" class="tab-content hidden fade-in space-y-6">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="target" size="18"></i> Tambah Tujuan</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                        <div><input id="gl-name" placeholder="Nama Goal" class="w-full p-2 border rounded text-sm"></div>
+                        <div><input id="gl-tgt" type="number" placeholder="Target Rp" class="w-full p-2 border rounded text-sm"></div>
+                        <div><input id="gl-cur" type="number" placeholder="Awal Rp" class="w-full p-2 border rounded text-sm"></div>
+                        <button onclick="addGoal()" class="bg-blue-600 text-white py-2 rounded font-bold text-sm">Buat Goal</button>
+                    </div>
+                </div>
+                <div id="list-gl" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- DEBT -->
+            <div id="tab-debt" class="tab-content hidden fade-in space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-red-50 p-6 rounded-xl shadow border border-red-100"><div class="text-red-600 text-xs font-bold uppercase mb-1">Hutang (Bayar)</div><div id="db-pay" class="text-3xl font-bold text-red-700">Rp 0</div></div>
+                    <div class="bg-blue-50 p-6 rounded-xl shadow border border-blue-100"><div class="text-blue-600 text-xs font-bold uppercase mb-1">Piutang (Tagih)</div><div id="db-rec" class="text-3xl font-bold text-blue-700">Rp 0</div></div>
+                </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="plus" size="18"></i> Catat Hutang/Piutang</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                        <div><input id="db-ti" placeholder="Keterangan" class="w-full p-2 border rounded text-sm"></div>
+                        <div><select id="db-ty" class="w-full p-2 border rounded text-sm"><option value="payable">Hutang Saya</option><option value="receivable">Piutang</option></select></div>
+                        <div><input id="db-am" type="number" placeholder="Nominal" class="w-full p-2 border rounded text-sm"></div>
+                        <button onclick="addDebt()" class="bg-slate-800 text-white py-2 rounded font-bold text-sm">Simpan</button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full text-sm text-left"><thead class="bg-slate-50 text-slate-500 text-xs uppercase border-b"><tr><th class="p-3">Ket</th><th class="p-3">Tipe</th><th class="p-3 text-right">Nominal</th><th class="p-3 text-center">Status</th><th class="p-3"></th></tr></thead><tbody id="list-db" class="divide-y divide-slate-100"></tbody></table>
+                </div>
+            </div>
+
+            <!-- REPORTS -->
+            <div id="tab-reports" class="tab-content hidden fade-in space-y-6">
+                <div class="bg-slate-800 text-white p-6 rounded-xl shadow-lg flex justify-between items-center">
+                    <div><h3 class="font-bold text-lg">Backup Data</h3><p class="text-slate-400 text-xs">Download CSV Transaksi.</p></div>
+                    <button onclick="exportCSV()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm transition"><i data-lucide="download" size="16"></i> Download</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-fit">
+                        <div class="p-4 bg-slate-50 border-b font-bold flex gap-2 items-center text-slate-700"><i data-lucide="scale" size="18"></i> Neraca (Net Worth)</div>
+                        <div class="p-6 space-y-3">
+                            <div class="flex justify-between border-b border-dashed pb-2"><span class="text-slate-500 text-sm">Kas</span><span id="rep-cash" class="font-mono font-bold text-slate-700">Rp 0</span></div>
+                            <div class="flex justify-between border-b border-dashed pb-2"><span class="text-slate-500 text-sm">Investasi</span><span id="rep-invest" class="font-mono font-bold text-slate-700">Rp 0</span></div>
+                            <div class="flex justify-between border-b border-dashed pb-2"><span class="text-slate-500 text-sm">Piutang</span><span id="rep-rec" class="font-mono font-bold text-blue-600">Rp 0</span></div>
+                            <div class="flex justify-between border-b border-slate-200 pb-2 mt-2 bg-emerald-50 p-2 rounded"><span class="text-emerald-700 font-bold text-sm">Total Aset</span><span id="rep-assets" class="font-mono font-bold text-emerald-700">Rp 0</span></div>
+                            <div class="flex justify-between border-b border-slate-200 pb-2 mt-4 bg-red-50 p-2 rounded"><span class="text-red-700 font-bold text-sm">Kewajiban</span><span id="rep-liab" class="font-mono font-bold text-red-700">Rp 0</span></div>
+                            <div class="flex justify-between pt-4"><span class="font-bold text-slate-900 text-lg">Kekayaan Bersih</span><span id="rep-nw" class="font-mono font-bold text-lg text-slate-900">Rp 0</span></div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden h-fit">
+                        <div class="p-4 bg-slate-50 border-b font-bold flex gap-2 items-center text-slate-700"><i data-lucide="calendar" size="18"></i> Arus Kas Bulanan</div>
+                        <div class="max-h-[400px] overflow-y-auto"><table class="w-full text-sm"><thead class="bg-white text-xs text-slate-400 border-b"><tr><th class="p-3 text-left">Bulan</th><th class="p-3 text-right">Masuk</th><th class="p-3 text-right">Keluar</th><th class="p-3 text-right">Net</th></tr></thead><tbody id="list-monthly" class="divide-y divide-slate-100"></tbody></table></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADVISOR -->
+            <div id="tab-advisor" class="tab-content hidden fade-in space-y-6">
+                <div class="bg-indigo-600 rounded-xl shadow-lg p-6 text-white">
+                    <h2 class="text-2xl font-bold mb-2 flex items-center gap-2"><i data-lucide="bot"></i> AI Advisor (Gemini)</h2>
+                    <div class="mb-4 bg-indigo-800/50 p-3 rounded-lg">
+                        <label class="text-xs text-indigo-300 block mb-1">Gemini API Key:</label>
+                        <input type="password" id="gemini-key" placeholder="Paste API Key disini..." class="w-full p-2 rounded text-slate-900 text-sm">
+                    </div>
+                    <button onclick="generateAdvice()" id="btn-ai" class="bg-white text-indigo-600 px-6 py-2 rounded-lg font-bold shadow hover:bg-indigo-50 flex items-center gap-2"><i data-lucide="sparkles" size="18"></i> Analisa</button>
+                </div>
+                <div id="ai-result" class="hidden bg-white rounded-xl shadow-md border border-indigo-100 p-6 prose prose-sm max-w-none text-slate-700"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // === CONFIG FIREBASE KAMU ===
+        const firebaseConfig = {
+            apiKey: "AIzaSyB8k5FyQiyeQkZbef0r2Z6WBIESvs-7Gwk",
+            authDomain: "dompetcloud.firebaseapp.com",
+            projectId: "dompetcloud",
+            storageBucket: "dompetcloud.firebasestorage.app",
+            messagingSenderId: "962777716410",
+            appId: "1:962777716410:web:db66c854f377345df31483",
+            measurementId: "G-D4P364E1WV"
+        };
+
+        // === INIT ===
+        let app, auth, db;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            document.getElementById('conn-status').innerText = "Database Connected ✅";
+            document.getElementById('conn-status').className = "mt-2 text-xs font-mono text-emerald-600 font-bold";
+        } catch (e) {
+            document.getElementById('conn-status').innerText = "Config Error ❌";
+            alert("Error: " + e.message);
+        }
+
+        // === STATE & HELPERS ===
+        let user = null;
+        let txType = 'expense';
+        let state = { tx:[], bd:[], av:[], gl:[], db:[] }; // Local cache for rendering
+        const fmt = n => new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', minimumFractionDigits:0}).format(n);
+        const pct = n => new Intl.NumberFormat('id-ID', {style:'percent', minimumFractionDigits:1}).format(n/100);
+
+        // === AUTH ===
+        function handleLogin() {
+            const e=id('auth-email').value, p=id('auth-pass').value;
+            if(!e||!p) return alert("Isi email & password");
+            id('btn-login').innerText="Loading...";
+            auth.signInWithEmailAndPassword(e,p).catch(err => showError(err));
+        }
+        function handleRegister() {
+            const e=id('auth-email').value, p=id('auth-pass').value;
+            if(!e||!p) return alert("Isi email & password");
+            id('btn-register').innerText="Loading...";
+            auth.createUserWithEmailAndPassword(e,p).catch(err => showError(err));
+        }
+        function logout() { auth.signOut(); location.reload(); }
+        function showError(err) {
+            const el = id('auth-error'); el.innerText = err.message; el.classList.remove('hidden');
+            id('btn-login').innerText="Masuk"; id('btn-register').innerText="Daftar";
+        }
+
+        auth.onAuthStateChanged(u => {
+            if(u) {
+                user = u;
+                id('user-email').innerText = u.email;
+                id('auth-screen').classList.add('hidden');
+                id('app-screen').classList.remove('hidden');
+                initData();
+            } else {
+                id('auth-screen').classList.remove('hidden');
+                id('app-screen').classList.add('hidden');
+            }
+        });
+
+        // === DATA SYNC ===
+        function initData() {
+            // Listeners for all collections
+            const collections = [
+                { name: 'transactions', key: 'tx', order: 'createdAt' },
+                { name: 'budgets', key: 'bd', order: 'createdAt' },
+                { name: 'assets', key: 'av', order: 'createdAt' },
+                { name: 'goals', key: 'gl', order: 'createdAt' },
+                { name: 'debts', key: 'db', order: 'createdAt' }
+            ];
+
+            collections.forEach(col => {
+                db.collection(col.name)
+                  .where('uid','==',user.uid)
+                  .orderBy(col.order, 'desc')
+                  .onSnapshot(
+                    snap => {
+                        state[col.key] = snap.docs.map(d => ({id:d.id, ...d.data()}));
+                        renderAll();
+                    },
+                    err => {
+                        console.error("Firestore Error:", err);
+                        // Cek error index
+                        if(err.code === 'failed-precondition' && err.message.includes('index')) {
+                            alert(`⚠️ DATABASE BUTUH INDEX!\n\nData ${col.name} tidak muncul karena Firestore butuh index untuk query sortir.\n\nSOLUSI: Tekan F12 > Console > Klik link error dari Firebase.`);
+                        } else if(err.code === 'permission-denied') {
+                            alert("⚠️ AKSES DITOLAK. Cek Rules Database.");
+                        }
+                    }
+                  );
+            });
+        }
+
+        // === ACTIONS ===
+        // 1. Transactions
+        function setTxType(t) {
+            txType = t;
+            id('btn-tx-exp').className = t==='expense' ? "flex-1 py-2 text-sm font-bold rounded bg-white text-red-600 shadow" : "flex-1 py-2 text-sm font-bold rounded text-slate-500";
+            id('btn-tx-inc').className = t==='income' ? "flex-1 py-2 text-sm font-bold rounded bg-white text-emerald-600 shadow" : "flex-1 py-2 text-sm font-bold rounded text-slate-500";
+        }
+        function addTransaction() {
+            const d=id('tx-desc').value, a=parseFloat(id('tx-amt').value), c=id('tx-cat').value, dt=id('tx-date').value;
+            if(!d||!a) return;
+            
+            db.collection('transactions').add({ 
+                uid:user.uid, desc:d, amount:a, cat:c, date:dt||new Date().toISOString().split('T')[0], 
+                type:txType, createdAt:firebase.firestore.FieldValue.serverTimestamp() 
+            }).then(() => {
+                console.log("Transaksi sukses disimpan!");
+                id('tx-desc').value=''; id('tx-amt').value='';
+            }).catch(err => {
+                alert("Gagal simpan: " + err.message);
+            });
+        }
+
+        // 2. Budget
+        function addBudget() {
+            const c=id('bd-cat').value, l=parseFloat(id('bd-lim').value);
+            if(!l) return;
+            const exist = state.bd.find(b => b.cat === c);
+            if(exist) return alert("Budget kategori ini sudah ada. Hapus dulu.");
+            db.collection('budgets').add({ uid:user.uid, cat:c, limit:l, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+            id('bd-lim').value='';
+        }
+
+        // 3. Assets
+        function addAsset() {
+            const n=id('av-name').value, t=id('av-type').value, u=parseFloat(id('av-unit').value), p=parseFloat(id('av-price').value);
+            if(!n||!u||!p) return;
+            db.collection('assets').add({ uid:user.uid, name:n, type:t, unit:u, buy:p, curr:p, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+            id('av-name').value=''; id('av-unit').value=''; id('av-price').value='';
+        }
+        function updateAssetPrice(docId, newPrice) {
+            db.collection('assets').doc(docId).update({ curr: parseFloat(newPrice) });
+        }
+
+        // 4. Goals
+        function addGoal() {
+            const n=id('gl-name').value, t=parseFloat(id('gl-tgt').value), c=parseFloat(id('gl-cur').value||0);
+            if(!n||!t) return;
+            db.collection('goals').add({ uid:user.uid, name:n, target:t, curr:c, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+            id('gl-name').value=''; id('gl-tgt').value=''; id('gl-cur').value='';
+        }
+        function updateGoal(docId, addAmount) {
+            const g = state.gl.find(x => x.id === docId);
+            if(g) db.collection('goals').doc(docId).update({ curr: g.curr + parseFloat(addAmount) });
+        }
+
+        // 5. Debt
+        function addDebt() {
+            const ti=id('db-ti').value, ty=id('db-ty').value, am=parseFloat(id('db-am').value);
+            if(!ti||!am) return;
+            db.collection('debts').add({ uid:user.uid, title:ti, type:ty, amount:am, paid:false, createdAt:firebase.firestore.FieldValue.serverTimestamp() });
+            id('db-ti').value=''; id('db-am').value='';
+        }
+        function toggleDebt(docId, currentStatus) {
+            db.collection('debts').doc(docId).update({ paid: !currentStatus });
+        }
+
+        // Generic Delete
+        window.del = (col, docId) => { if(confirm("Hapus?")) db.collection(col).doc(docId).delete(); };
+
+        // === RENDERING ===
+        function renderAll() {
+            renderDash(); renderBudg(); renderInv(); renderGoal(); renderDebt(); renderRep();
+            lucide.createIcons();
+        }
+
+        function renderDash() {
+            const inc = state.tx.filter(x=>x.type==='income').reduce((a,b)=>a+b.amount,0);
+            const exp = state.tx.filter(x=>x.type==='expense').reduce((a,b)=>a+b.amount,0);
+            id('dash-bal').innerText = fmt(inc-exp);
+            id('dash-inc').innerText = fmt(inc);
+            id('dash-exp').innerText = fmt(exp);
+            
+            id('list-tx').innerHTML = state.tx.map(t => `
+                <div class="flex justify-between items-center p-3 hover:bg-slate-50 border-b last:border-0">
+                    <div><div class="font-bold text-sm text-slate-700">${t.desc}</div><div class="text-xs text-slate-400">${t.date} • ${t.cat}</div></div>
+                    <div class="text-right">
+                        <div class="font-mono font-bold text-sm ${t.type==='income'?'text-emerald-600':'text-red-600'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+                        <button onclick="del('transactions','${t.id}')" class="text-xs text-slate-300 hover:text-red-500"><i data-lucide="trash-2" width="12"></i></button>
+                    </div>
+                </div>`).join('');
+        }
+
+        function renderBudg() {
+            const now = new Date().toISOString().slice(0,7);
+            id('list-bd').innerHTML = state.bd.map(b => {
+                const spent = state.tx.filter(t => t.type==='expense' && t.cat===b.cat && t.date.startsWith(now)).reduce((a,c)=>a+c.amount,0);
+                const p = Math.min((spent/b.limit)*100, 100);
+                const clr = p>100?'bg-red-500':p>75?'bg-orange-500':'bg-emerald-500';
+                return `<div class="bg-white p-4 rounded-xl border shadow-sm mb-3">
+                    <div class="flex justify-between mb-2"><span class="font-bold text-slate-700">${b.cat}</span><span class="text-xs text-slate-500">${fmt(spent)} / ${fmt(b.limit)}</span></div>
+                    <div class="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${clr}" style="width:${p}%"></div></div>
+                    <div class="flex justify-between mt-1 text-xs"><span class="${spent>b.limit?'text-red-600 font-bold':'text-slate-400'}">${spent>b.limit?'Over Budget!':pct(p)+' Terpakai'}</span><button onclick="del('budgets','${b.id}')" class="text-slate-300 hover:text-red-500">Hapus</button></div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderInv() {
+            let m=0, v=0;
+            id('list-av').innerHTML = state.av.map(a => {
+                const cm = a.unit*a.buy, cv = a.unit*a.curr; m+=cm; v+=cv;
+                const roi = ((cv-cm)/cm)*100;
+                return `<tr class="hover:bg-slate-50 border-b">
+                    <td class="p-3 font-bold text-slate-700">${a.name}<div class="text-xs font-normal text-slate-400">${a.type}</div></td>
+                    <td class="p-3 text-right text-xs text-slate-500 font-mono">${fmt(cm)}</td>
+                    <td class="p-3 text-right"><input type="number" value="${a.curr}" onchange="updateAssetPrice('${a.id}',this.value)" class="w-20 text-right text-xs border rounded p-1"></td>
+                    <td class="p-3 text-right font-bold text-slate-800 font-mono">${fmt(cv)}</td>
+                    <td class="p-3 text-center"><span class="px-2 py-1 rounded text-xs font-bold ${roi>=0?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}">${roi.toFixed(1)}%</span></td>
+                    <td class="p-3 text-center"><button onclick="del('assets','${a.id}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" width="12"></i></button></td>
+                </tr>`;
+            }).join('');
+            id('inv-total').innerText = fmt(v);
+            id('inv-modal').innerText = fmt(m);
+            const pl = v-m;
+            id('inv-pl').innerText = (pl>=0?'+':'')+fmt(pl);
+            id('inv-pl').className = pl>=0?'font-bold text-emerald-400':'font-bold text-red-400';
+            id('inv-roi').innerText = (m===0?0:(pl/m)*100).toFixed(1)+'%';
+        }
+
+        function renderGoal() {
+            id('list-gl').innerHTML = state.gl.map(g => {
+                const p = Math.min((g.curr/g.target)*100, 100);
+                return `<div class="bg-white p-5 rounded-xl border shadow-sm">
+                    <div class="flex justify-between mb-2"><span class="font-bold text-slate-800">${g.name}</span><button onclick="del('goals','${g.id}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" width="14"></i></button></div>
+                    <div class="text-2xl font-bold text-slate-700 mb-2">${fmt(g.curr)} <span class="text-xs text-slate-400 font-normal">of ${fmt(g.target)}</span></div>
+                    <div class="h-2 w-full bg-slate-100 rounded-full mb-4 overflow-hidden"><div class="h-full bg-blue-500" style="width:${p}%"></div></div>
+                    <input type="number" placeholder="+ Add Rp" class="w-full text-xs p-1 border rounded" onkeydown="if(event.key==='Enter'){updateGoal('${g.id}',this.value);this.value=''}">
+                </div>`;
+            }).join('');
+        }
+
+        function renderDebt() {
+            let py=0, rc=0;
+            id('list-db').innerHTML = state.db.map(d => {
+                if(!d.paid) d.type==='payable'?py+=d.amount:rc+=d.amount;
+                return `<tr class="hover:bg-slate-50 border-b ${d.paid?'opacity-50 grayscale':''}">
+                    <td class="p-3 font-bold text-slate-700">${d.title}</td>
+                    <td class="p-3"><span class="px-2 py-1 rounded text-xs font-bold ${d.type==='payable'?'bg-red-100 text-red-600':'bg-blue-100 text-blue-600'}">${d.type==='payable'?'Hutang':'Piutang'}</span></td>
+                    <td class="p-3 text-right font-mono font-bold text-slate-800">${fmt(d.amount)}</td>
+                    <td class="p-3 text-center"><button onclick="toggleDebt('${d.id}',${d.paid})" class="text-xs border px-2 py-1 rounded ${d.paid?'bg-emerald-100 text-emerald-700':'bg-white text-slate-500'}">${d.paid?'LUNAS':'BELUM'}</button></td>
+                    <td class="p-3 text-center"><button onclick="del('debts','${d.id}')" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" width="12"></i></button></td>
+                </tr>`;
+            }).join('');
+            id('db-pay').innerText=fmt(py); id('db-rec').innerText=fmt(rc);
+        }
+
+        function renderRep() {
+            // Net Worth
+            const cash = state.tx.reduce((a,c)=>a+(c.type==='income'?c.amount:-c.amount),0);
+            const inv = state.av.reduce((a,c)=>a+(c.unit*c.curr),0);
+            const rec = state.db.filter(d=>d.type==='receivable'&&!d.paid).reduce((a,c)=>a+c.amount,0);
+            const liab = state.db.filter(d=>d.type==='payable'&&!d.paid).reduce((a,c)=>a+c.amount,0);
+            const nw = (cash+inv+rec)-liab;
+            id('rep-cash').innerText=fmt(cash); id('rep-invest').innerText=fmt(inv); id('rep-rec').innerText=fmt(rec);
+            id('rep-assets').innerText=fmt(cash+inv+rec); id('rep-liab').innerText=fmt(liab);
+            id('rep-nw').innerText=fmt(nw); id('rep-nw').className=`font-mono font-bold text-lg ${nw>=0?'text-blue-600':'text-red-600'}`;
+            
+            // Monthly
+            const grp={};
+            state.tx.forEach(t=>{ const m=t.date.slice(0,7); if(!grp[m])grp[m]={i:0,e:0}; t.type==='income'?grp[m].i+=t.amount:grp[m].e+=t.amount; });
+            id('list-monthly').innerHTML = Object.entries(grp).sort().reverse().map(([m,d])=>{
+                const n=d.i-d.e;
+                return `<tr class="hover:bg-slate-50 border-b"><td class="p-3 font-mono text-slate-600 font-bold">${m}</td><td class="p-3 text-right text-emerald-600 font-mono">+${fmt(d.i)}</td><td class="p-3 text-right text-red-600 font-mono">-${fmt(d.e)}</td><td class="p-3 text-right font-bold font-mono ${n>=0?'text-slate-800':'text-red-600'}">${n>=0?'+':''}${fmt(n)}</td></tr>`;
+            }).join('');
+        }
+
+        async function generateAdvice() {
+            const key=id('gemini-key').value; if(!key) return alert("Isi API Key!");
+            id('btn-ai').innerText="Berpikir...";
+            const data = {
+                cash: id('dash-bal').innerText,
+                inv: id('inv-total').innerText,
+                debt: id('db-pay').innerText,
+                assets: state.av.map(a=>`${a.name} (${a.type})`).join(', ')
+            };
+            const prompt = `Analisa keuangan saya. Cash: ${data.cash}, Investasi: ${data.inv}, Hutang: ${data.debt}. Aset: ${data.assets}. Berikan kritik pedas & saran. HTML format.`;
+            
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`, {
+                    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
+                });
+                const json = await res.json();
+                id('ai-result').innerHTML = json.candidates[0].content.parts[0].text.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+                id('ai-result').classList.remove('hidden');
+            } catch(e) { alert("AI Error: "+e.message); }
+            id('btn-ai').innerHTML='<i data-lucide="sparkles"></i> Analisa';
+        }
+
+        // Export
+        function exportCSV() {
+            let csv = "data:text/csv;charset=utf-8,ID,Date,Type,Category,Desc,Amount\n";
+            state.tx.forEach(t => csv += `${t.id},${t.date},${t.type},${t.cat},"${t.desc}",${t.amount}\n`);
+            const link = document.createElement("a"); link.href = encodeURI(csv); link.download = "data.csv"; link.click();
+        }
+
+        // Helper
+        function id(x) { return document.getElementById(x); }
+        function switchTab(t) {
+            document.querySelectorAll('.tab-content').forEach(e=>e.classList.add('hidden'));
+            id('tab-'+t).classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(b=>{ b.classList.remove('bg-slate-800','text-white'); b.classList.add('bg-white','text-slate-600','border'); });
+            id('btn-'+t).classList.remove('bg-white','text-slate-600','border');
+            id('btn-'+t).classList.add('bg-slate-800','text-white');
+            lucide.createIcons();
+        }
+
+        // Init
+        id('tx-date').value = new Date().toISOString().split('T')[0];
+        const sk = localStorage.getItem('gk'); if(sk) id('gemini-key').value=sk;
+        id('gemini-key').addEventListener('change',e=>localStorage.setItem('gk',e.target.value));
+    </script>
+</body>
+</html>
